@@ -17,6 +17,10 @@ export interface Credential {
 }
 
 export class ExecAuth implements Authenticator {
+    private fileAbsolutePath: string | undefined;
+    constructor(fileAbsolutePath?: string) {
+        this.fileAbsolutePath = fileAbsolutePath;
+    }
     private readonly tokenCache: { [key: string]: Credential | null } = {};
     private execFn: (
         cmd: string,
@@ -73,14 +77,15 @@ export class ExecAuth implements Authenticator {
     }
 
     private getCredential(user: User): Credential | null {
+        const key = `${user.name}${this.fileAbsolutePath ? `:${this.fileAbsolutePath}` : ''}`;
         // TODO: Add a unit test for token caching.
-        const cachedToken = this.tokenCache[user.name];
+        const cachedToken = this.tokenCache[key];
         if (cachedToken) {
             const date = Date.parse(cachedToken.status.expirationTimestamp);
             if (date > Date.now()) {
                 return cachedToken;
             }
-            this.tokenCache[user.name] = null;
+            this.tokenCache[key] = null;
         }
         let exec: any = null;
         if (user.authProvider && user.authProvider.config) {
@@ -106,7 +111,7 @@ export class ExecAuth implements Authenticator {
         const result = this.execFn(exec.command, exec.args, opts);
         if (result.status === 0) {
             const obj = JSON.parse(result.stdout.toString('utf8')) as Credential;
-            this.tokenCache[user.name] = obj;
+            this.tokenCache[key] = obj;
             return obj;
         }
         throw new Error(result.stderr.toString('utf8'));
